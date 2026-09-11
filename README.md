@@ -46,7 +46,7 @@ The repository already contains a trained 10,000-record smoke dataset and model.
 terminal opened in this folder:
 
 ```bash
-cd /Users/akshay.sharma/SIH
+cd /Users/Raghav/Projects/SIH 2026/SIH
 source .venv/bin/activate
 ```
 
