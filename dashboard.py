@@ -7,12 +7,15 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import geopandas as gpd
+import numpy as np
 import pandas as pd
 import pydeck as pdk
+import shap
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
 
 from ner_landslide.config import load_settings
+from ner_landslide.model import LandslideRiskModel
 from ner_landslide.predict import generate_predictions
 from run_python import ensure_data, get_model
 
@@ -79,6 +82,55 @@ def refresh_forecast(config_path: Path) -> gpd.GeoDataFrame:
     return generate_predictions(settings, model, grid, terrain, satellite)
 
 
+def shap_reasons(model: LandslideRiskModel, frame: pd.DataFrame) -> pd.DataFrame:
+    if frame.empty:
+        return pd.DataFrame()
+    estimator = model.estimator
+    transformer = estimator.named_steps["prepare"]
+    classifier = estimator.named_steps["classifier"]
+    transformed = transformer.transform(frame[model.features])
+    shap_values = np.asarray(shap.TreeExplainer(classifier)(transformed).values)
+    if getattr(shap_values, "ndim", 2) == 3:
+        shap_values = shap_values[:, :, 1]
+    transformed_names = [str(name) for name in transformer.get_feature_names_out()]
+    reason_rows = []
+    for (_, row), values in zip(frame.iterrows(), shap_values, strict=True):
+        contributions = {}
+        for name, value in zip(transformed_names, values, strict=True):
+            feature = next(
+                (
+                    candidate
+                    for candidate in model.features
+                    if name.endswith(candidate)
+                    or name.endswith(f"missingindicator_{candidate}")
+                ),
+                name,
+            )
+            contributions[feature] = contributions.get(feature, 0.0) + float(value)
+        positive = sorted(
+            ((feature, value) for feature, value in contributions.items() if value > 0),
+            key=lambda item: item[1],
+            reverse=True,
+        )[:3]
+        total_positive = sum(value for _, value in positive)
+        result = {
+            "state": row["state"],
+            "latitude": row["latitude"],
+            "longitude": row["longitude"],
+            "target_date": row["target_date"],
+            "risk_probability": row["risk_probability"],
+            "risk_category": row["risk_category"],
+        }
+        for index in range(3):
+            feature, value = positive[index] if index < len(positive) else ("-", 0.0)
+            result[f"reason_{index + 1}"] = feature
+            result[f"reason_{index + 1}_impact"] = (
+                value / total_positive if total_positive else 0.0
+            )
+        reason_rows.append(result)
+    return pd.DataFrame(reason_rows)
+
+
 st.sidebar.title("Control centre")
 dataset = st.sidebar.selectbox(
     "Configuration",
@@ -89,6 +141,7 @@ config_path = Path(
 )
 settings = load_settings(config_path)
 forecast_path = settings.project.outputs_dir / "risk_forecast.parquet"
+model = get_model(settings, retrain=False, rebuild_data=False)
 
 auto_refresh = st.sidebar.toggle("Automatic live refresh", value=False)
 refresh_minutes = st.sidebar.slider("Refresh interval (minutes)", 5, 60, 15, 5)
@@ -213,6 +266,39 @@ with left:
         .sort_values("risk_probability", ascending=False)
     )
     st.bar_chart(state_summary, x="state", y="risk_probability", horizontal=True)
+
+st.subheader("SHAP reasons for elevated risk")
+shap_input = (
+    filtered.loc[filtered["risk_category"].isin(["high", "severe"])]
+    .sort_values("risk_probability", ascending=False)
+    .head(100)
+)
+if shap_input.empty:
+    st.info("No high or severe regions match the current filters.")
+else:
+    reasons = shap_reasons(model, shap_input)
+    st.dataframe(
+        reasons,
+        hide_index=True,
+        use_container_width=True,
+        column_config={
+            "risk_probability": st.column_config.ProgressColumn(
+                "Probability",
+                min_value=0.0,
+                max_value=1.0,
+                format="%.2f",
+            ),
+            "reason_1_impact": st.column_config.NumberColumn(
+                "Reason 1 impact", format="%.1f%%"
+            ),
+            "reason_2_impact": st.column_config.NumberColumn(
+                "Reason 2 impact", format="%.1f%%"
+            ),
+            "reason_3_impact": st.column_config.NumberColumn(
+                "Reason 3 impact", format="%.1f%%"
+            ),
+        },
+    )
 
 with right:
     st.subheader("Priority locations")
