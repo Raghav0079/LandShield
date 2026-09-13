@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from datetime import UTC, date, datetime
 from pathlib import Path
 
 import geopandas as gpd
 import numpy as np
 import pandas as pd
+from dotenv import load_dotenv
 
 from ner_landslide.config import Settings
 from ner_landslide.data.weather import OpenMeteoConnector
@@ -15,6 +17,19 @@ from ner_landslide.features import assemble_features
 from ner_landslide.model import LandslideRiskModel
 
 LOGGER = logging.getLogger(__name__)
+
+
+def _dispatch_alerts(forecast: gpd.GeoDataFrame, output_dir: Path) -> None:
+    load_dotenv(
+        Path(__file__).resolve().parents[2] / "LandShield_Alert_System" / ".env"
+    )
+    if os.getenv("LANDSHIELD_ALERTS_ENABLED", "false").lower() != "true":
+        return
+
+    from LandShield_Alert_System.alert_engine import dispatch_forecast_alerts
+
+    results = dispatch_forecast_alerts(forecast, output_dir / ".alert_sent.json")
+    LOGGER.info("Dispatched %d new landslide alerts", len(results))
 
 
 def _risk_category(probability: float, settings: Settings) -> str:
@@ -38,7 +53,9 @@ def _drivers(row: pd.Series) -> str:
         "wet_vegetation": max(float(row.get("ndmi", 0) or 0), 0) / 0.5,
     }
     ranked = sorted(scores.items(), key=lambda item: item[1], reverse=True)
-    return json.dumps([name for name, score in ranked[:3] if np.isfinite(score) and score > 0])
+    return json.dumps(
+        [name for name, score in ranked[:3] if np.isfinite(score) and score > 0]
+    )
 
 
 def generate_predictions(
@@ -82,7 +99,9 @@ def generate_predictions(
     features["weather_source"] = "Open-Meteo forecast/reanalysis"
     features["terrain_source"] = "Copernicus DEM GLO-30"
     features["imagery_source"] = "Sentinel-2 L2A composite"
-    features["driver_method"] = "ranked trigger indicators, not local feature attribution"
+    features["driver_method"] = (
+        "ranked trigger indicators, not local feature attribution"
+    )
 
     geometry = grid[["grid_id", "geometry"]]
     forecast = gpd.GeoDataFrame(
@@ -111,6 +130,7 @@ def generate_predictions(
     ]
     peak[export_columns].to_csv(output_dir / "risk_ranked.csv", index=False)
     peak.to_file(output_dir / "risk_peak.geojson", driver="GeoJSON")
+    _dispatch_alerts(forecast, output_dir)
     LOGGER.info(
         "Saved %d forecast rows and %d peak cell risks to %s",
         len(forecast),

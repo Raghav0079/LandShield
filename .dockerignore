@@ -1,4 +1,14 @@
-
+.git
+.gitignore
+.venv
+__pycache__
+*.pyc
+.pytest_cache
+.ruff_cache
+.mypy_cache
+data/cache
+data/processed
+*.log
 .venv/
 data/cache/
 __pycache__/
@@ -6,3 +16,4 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.env

@@ -1,4 +1,4 @@
-# LandShield
+# NER Landslide Prediction Pipeline
 
 An ML-only decision-support pipeline for rainfall-triggered landslide risk across
 Arunachal Pradesh, Assam, Manipur, Meghalaya, Mizoram, Nagaland, Sikkim, and Tripura.
@@ -46,7 +46,7 @@ The repository already contains a trained 10,000-record smoke dataset and model.
 terminal opened in this folder:
 
 ```bash
-cd /Users/Raghav/Projects/SIH 2026/SIH
+cd /Users/akshay.sharma/SIH
 source .venv/bin/activate
 ```
 

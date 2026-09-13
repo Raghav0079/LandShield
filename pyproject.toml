@@ -27,6 +27,8 @@ dependencies = [
   "streamlit>=1.40,<2",
   "streamlit-autorefresh>=1.0,<2",
   "typer>=0.12,<1",
+  "twilio>=9.0,<10",
+  "python-dotenv>=1.0,<2",
 ]
 
 [project.optional-dependencies]
