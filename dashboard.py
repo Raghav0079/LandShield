@@ -143,8 +143,9 @@ settings = load_settings(config_path)
 forecast_path = settings.project.outputs_dir / "risk_forecast.parquet"
 model = get_model(settings, retrain=False, rebuild_data=False)
 
-auto_refresh = st.sidebar.toggle("Automatic live refresh", value=False)
-refresh_minutes = st.sidebar.slider("Refresh interval (minutes)", 5, 60, 15, 5)
+auto_refresh = st.sidebar.toggle("Automatic live refresh", value=True)
+refresh_minutes = 180
+st.sidebar.caption("Live weather refreshes every 3 hours when enabled.")
 refresh_count = (
     st_autorefresh(interval=refresh_minutes * 60 * 1000, key="forecast_refresh")
     if auto_refresh
@@ -264,6 +265,7 @@ with left:
         filtered.groupby("state", as_index=False)["risk_probability"]
         .mean()
         .sort_values("risk_probability", ascending=False)
+        .reset_index(drop=True)
     )
     st.bar_chart(state_summary, x="state", y="risk_probability", horizontal=True)
 
@@ -277,6 +279,9 @@ if shap_input.empty:
     st.info("No high or severe regions match the current filters.")
 else:
     reasons = shap_reasons(model, shap_input)
+    reasons = reasons.sort_values("risk_probability", ascending=False).reset_index(
+        drop=True
+    )
     st.dataframe(
         reasons,
         hide_index=True,
