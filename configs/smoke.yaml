@@ -1,0 +1,61 @@
+project:
+  seed: 42
+  cache_dir: data/cache
+  processed_dir: data/smoke
+  artifacts_dir: artifacts/smoke
+  outputs_dir: outputs/smoke
+
+region:
+  states:
+    - Arunachal Pradesh
+    - Assam
+    - Manipur
+    - Meghalaya
+    - Mizoram
+    - Nagaland
+    - Sikkim
+    - Tripura
+  grid_resolution_degrees: 1.0
+  boundary_url: https://www.geoboundaries.org/api/current/gbOpen/IND/ADM1/
+
+training:
+  start_date: "2015-01-01"
+  end_date: "2025-12-31"
+  max_events: null
+  minimum_training_records: 10000
+  controls_per_event: 1
+  exclusion_radius_km: 20
+  event_window_days: 1
+  holdout_states: [Sikkim, Mizoram]
+  temporal_holdout_fraction: 0.2
+  min_recall_for_threshold: 0.75
+
+weather:
+  archive_url: https://archive-api.open-meteo.com/v1/archive
+  forecast_url: https://api.open-meteo.com/v1/forecast
+  power_url: https://power.larc.nasa.gov/api/temporal/daily/point
+  coordinate_batch_size: 40
+  timeout_seconds: 90
+  forecast_days: 3
+
+stac:
+  url: https://planetarycomputer.microsoft.com/api/stac/v1
+  dem_collection: cop-dem-glo-30
+  sentinel_collection: sentinel-2-l2a
+  sentinel_start_date: "2024-01-01"
+  sentinel_end_date: "2025-12-31"
+  max_sentinel_items: 2
+  max_cloud_cover: 20
+  enabled: true
+
+landslides:
+  query_url: https://gis.earthdata.nasa.gov/gis05/rest/services/Landslides/COOLR_Events_Points/FeatureServer/0/query
+  fallback_csv_url: https://raw.githubusercontent.com/erikanagamine/autonomousdatabase/master/files/Global_Landslide_Catalog_Export.csv
+  page_size: 1000
+
+prediction:
+  warning_horizon_days: 3
+  thresholds:
+    medium: 0.30
+    high: 0.55
+    severe: 0.75
