@@ -10,3 +10,7 @@ artifacts/
 outputs/
 *.pyc
 .DS_Store
+.vscode/
+.idea/
+.env
+*.log
